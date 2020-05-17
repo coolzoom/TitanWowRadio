@@ -362,6 +362,8 @@ function Localize()
 		TitanLocalizeFR();
 	elseif ( locale == "spSP" ) then
 		TitanLocalizeSP();
+	elseif ( locale == "zhCN" ) then
+		TitanLocalizeCN();
 	end
 end
 
