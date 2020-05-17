@@ -5,8 +5,8 @@ TitanPluginSettings = nil;
 TitanPanelSettings = nil;
 TitanOldSettings = nil;
 
-TITAN_LAST_UPDATED = "April 27th, 2006"
-TITAN_VERSION = "2.18.11000";
+TITAN_LAST_UPDATED = "August 23rd, 2006"
+TITAN_VERSION = "2.20.11200";
 TITAN_FIRST_LOAD = nil;
 
 -- Constants

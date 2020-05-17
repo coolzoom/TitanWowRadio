@@ -41,7 +41,7 @@ function TitanLocalizeEN()
 	TITAN_PANEL_MENU_OPTIONS = "Options";
 	TITAN_PANEL_MENU_PLUGINS = "Plugins";
 	TITAN_PANEL_MENU_VERSION_SHOWN = "Show plugin versions";
-	TITAN_PANEL_MENU_DISBALE_FONT = "Disbale font scaler";
+	TITAN_PANEL_MENU_DISBALE_FONT = "Disable font scaler";
 	TITAN_PANEL_MENU_CATEGORIES = {"General","Combat","Information","Interface","Profession"}
 	TITAN_PANEL_MENU_TOOLTIPS_SHOWN = "Show tooltips";
 	TITAN_PANEL_MENU_CASTINGBAR = "Move casting bar";
@@ -70,7 +70,7 @@ function TitanLocalizeEN()
 	TITAN_BAG_MENU_IGNORE_PROF_BAGS_SLOTS = "Ignore profession bags";
 	TITAN_BAG_SHARD_BAG_NAMES = {"Soul","Felcloth Bag"};
 	TITAN_BAG_AMMO_POUCH_NAMES = {"Ammo", "Quiver", "Bandolier", "Shot", "Lamina"};
-	TITAN_BAG_PROF_BAG_NAMES = {"Enchanted Mageweave Pouch","Enchanted Runecloth Bag","Cenarion Herb Bag","Satchel of Cenarius"};
+	TITAN_BAG_PROF_BAG_NAMES = {"Enchanted Mageweave Pouch","Enchanted Runecloth Bag","Big Bag of Enchantment","Herb Pouch","Cenarion Herb Bag","Satchel of Cenarius"};
 
 	TITAN_BGMINIMAP_MENU_TEXT = "Battleground minimap"
 	TITAN_BGMINIMAP_TOOLTIP = "Toggles battleground minimap"
@@ -288,24 +288,6 @@ function TitanLocalizeEN()
 		["Shaman"]  = 7,
 		["Warlock"] = 8,
 		["Warrior"] = 9,
-		["Druide"] = 1,
-		["J\195\164ger"] = 2,
-		["Magier"] = 3,
-		["Paladin"] = 4,
-		["Priester"] = 5,
-		["Schurke"] = 6,
-		["Schamane"] = 7,
-		["Hexenmeister"] = 8,
-		["Krieger"] = 9,
-		["Druide"] = 1,
-		["Chasseur"] = 2,
-		["Mage"] = 3,
-		["Paladin"] = 4,
-		["Pr\195\170tre"] = 5,
-		["Voleur"] = 6,
-		["Chaman"] = 7,
-		["D\195\169moniste"] = 8,
-		["Guerrier"] = 9,
 	};
 	
 	TITAN_HONORPLUS_BUTTON_LABEL_HK = "HK: ";
@@ -323,9 +305,11 @@ function TitanLocalizeEN()
 	TITAN_HONORPLUS_MENU_TOOLTIP = "Show Tooltip Info";
 	TITAN_HONORPLUS_MENU_SORTBYHONOR = "Sort by Honor";
 	TITAN_HONORPLUS_MENU_SORTBYKILLS = "Sort by Kills";
-	TITAN_HONORPLUS_ESTIMATED = "%s dies, [%d times today.], Rank: %s. [Educated Honor: %d]";
+	TITAN_HONORPLUS_ESTIMATED = "[%s] %s dies [%d kills today][Honor: %d]";
 	TITAN_HONORPLUS_BONUSHONORGAINED = "You gain %s bonus honor.";
 	TITAN_HONORPLUS_BONUS = "Bonus";
+	TITAN_HONORPLUS_HONORESTIMATED = "Honor Estimated";
+	TITAN_HONORPLUS_HONORESTIMATION = "Honor Estimation";
 	TITAN_HONORPLUS_PROGRESS = "Progress";
 	TITAN_HONORPLUS_TODAYHONOR = "Today's Honor";
 	TITAN_HONORPLUS_KILLS = "Kills";
@@ -340,9 +324,12 @@ function TitanLocalizeEN()
 	TITAN_HONORPLUS_KILLEDTODAY = "Killed Today";
 	TITAN_HONORPLUS_MENU_AUTORELEASE = "Auto-Release";
 	TITAN_HONORPLUS_MENU_AUTOJOINBG = "Auto-Join Battlegrounds";
-	TITAN_HONORPLUS_AUTOJOINBG = "Auto-joining battlegrounds in 10 seconds...";
+	TITAN_HONORPLUS_MENU_AUTOBGMAP = "Auto-Show Battlemap";
+	TITAN_HONORPLUS_AUTOJOINBG = "Auto-joining battlegrounds in 30 seconds...";
 	TITAN_HONORPLUS_AUTOJOINBG_CANCEL = "Cancelled joining battlegrounds.";
 	TITAN_HONORPLUS_AUTOJOINBG_DONE = "Now joining battlegrounds. Good luck!";
+	TITAN_HONORPLUS_BONUSHONOR = "been awarded (%d+)% honor points";
+	TITAN_HONORPLUS_BGZONES = {"Alterac Valley", "Warsong Gulch", "Arathi Basin"};
 
 	--Titan Repair
 	REPAIR_LOCALE = {
@@ -373,6 +360,8 @@ function Localize()
 		TitanLocalizeDE();
 	elseif ( locale == "frFR" ) then
 		TitanLocalizeFR();
+	elseif ( locale == "spSP" ) then
+		TitanLocalizeSP();
 	end
 end
 

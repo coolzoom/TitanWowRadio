@@ -322,7 +322,6 @@ function TitanLocalizeFR()
 	TITAN_HONORPLUS_MENU_TOOLTIP = "Montrer les infos sur le conseil";
 	TITAN_HONORPLUS_MENU_SORTBYHONOR = "Trier selon l'Honneur";
 	TITAN_HONORPLUS_MENU_SORTBYKILLS = "Trier selon le nombre de Tu\195\169s";
-	TITAN_HONORPLUS_ESTIMATED = "%s est mort, [%d fois aujourd'hui.], Rang: %s. [Points d'honneur estim\195\169s : %d]";
 	TITAN_HONORPLUS_BONUSHONORGAINED = "Vous gagnez %s Points d'honneur.";
 	TITAN_HONORPLUS_BONUS = "Bonus";
 	TITAN_HONORPLUS_PROGRESS = "Progr\195\168s";
@@ -342,6 +341,11 @@ function TitanLocalizeFR()
 	TITAN_HONORPLUS_AUTOJOINBG = "Entr\195\169e automatique sur le champ de bataille dans 10 secondes...";
 	TITAN_HONORPLUS_AUTOJOINBG_CANCEL = "Annuler l'entr\195\169e sur le champ de bataille.";
 	TITAN_HONORPLUS_AUTOJOINBG_DONE = "Vous entrez sur le champ de bataille. Bonne chance !";
+	TITAN_HONORPLUS_ESTIMATED = "[%s] %s meurt [%d morts aujourd\'hui][Honneur: %d]";
+	TITAN_HONORPLUS_HONORESTIMATED = "Honneur estim\195\169";
+	TITAN_HONORPLUS_HONORESTIMATION = "Estimation d\'honneur";
+	TITAN_HONORPLUS_BONUSHONOR = "Vous avez re\195\167u (%d+)% points d\'honneur.";
+	TITAN_HONORPLUS_BGZONES = {"Vall\195\169e d\'Alterac", "Goulet des Warsong", "Bassin d\'Arathi"};
 
 	REPAIR_LOCALE['pattern'] = '^Durabilit\195\169 (%d+) / (%d+)$';
 	REPAIR_LOCALE['menu'] = 'Info de durabilit\195\169';

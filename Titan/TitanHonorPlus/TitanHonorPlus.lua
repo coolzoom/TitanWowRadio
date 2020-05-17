@@ -4,29 +4,14 @@
 -- Keeps track of player class and level for the session.
 local playerList = {};
 
--- Winner?
-local TITAN_HONORPLUS_BGWINNER = nil;
-
 -- Time until accepting battlegrounds invite
 local TITAN_HONORPLUS_BGCONFIRM = 0;
-
--- Last known bonus from battlegrounds
-local TITAN_HONORPLUS_CURRENTBONUS = 0;
 
 -- Time of last PvP damage
 local TITAN_HONORPLUS_PVPDMG = 0;
 
--- Interval to send API BG Data requests, in seconds.
-local TITAN_HONORPLUS_BGAPI_INTERVAL = 5;
-
--- The line last used to set tooltip honor info
-local TITAN_HONORPLUS_TOOLTIPLINE = nil;
-
--- Next time to check.
-local TITAN_HONORPLUS_BGAPI_NEXT = 0;
-
 -- Timer
-local TITAN_HONORPLUS_BGAUTOJOINTIMER = 10;
+local TITAN_HONORPLUS_BGAUTOJOINTIMER = 30;
 
 -- Gives standard class colour
 TITAN_HONORPLUS_CLASSCOLORINDEX = {
@@ -48,8 +33,8 @@ TITAN_HONORPLUS_DEFAULTS = {
 	['todaydk'] = 0,
 	['todayhk'] = 0,
 	['todaycp'] = 0,
-	['todaycp2'] = 0,
 	['yesterday'] = 0,
+	['yesterday2'] = 0,
 	['lastweek'] = 0,
 	['weekdk'] = 0,
 	['log'] = {},
@@ -78,7 +63,6 @@ local vC = nil;
 -- Function Hooks
 ----------------------------
 local old_WorldStateScoreFrame_Update; 		-- Battlegrounds score sheet. Display update.
-local old_GameTooltip_OnHide; 				-- Tooltip is hidden, remove custom honor line.
 local old_WorldStateScoreFrame_Resize; 		-- When we add a new column to the scoreboard we need to resize it differently.
 local old_StaticPopup_OnHide;				-- Detects when you click 'hide' on BG invite request.
 
@@ -97,17 +81,14 @@ function TitanPanelHonorPlusButton_OnLoad()
 	this:RegisterEvent("PLAYER_DEAD"); -- And auto-release
 	this:RegisterEvent("CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS");
 	this:RegisterEvent("CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE");
-	-- For getting honor bonus data
-	this:RegisterEvent("UPDATE_BATTLEFIELD_SCORE");
-	this:RegisterEvent("UPDATE_WORLD_STATES");
 	-- Tooltip modifications
 	this:RegisterEvent("UPDATE_MOUSEOVER_UNIT");
 	-- Updating titan button/tooltip
 	this:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN");
-	this:RegisterEvent("PLAYER_PVP_KILLS_CHANGED");
-	this:RegisterEvent("PLAYER_PVP_RANK_CHANGED");
 	-- For checking BG queue status
 	this:RegisterEvent("UPDATE_BATTLEFIELD_STATUS");
+	-- For showing the battlemap
+	this:RegisterEvent("ZONE_CHANGED_NEW_AREA");
 	
 	-- Get LeftClick Event
 	this:RegisterForClicks("LeftButtonUp");
@@ -119,12 +100,10 @@ function TitanPanelHonorPlusButton_OnLoad()
 	-- Resizing the BG scoreboard
 	old_WorldStateScoreFrame_Resize = WorldStateScoreFrame_Resize;
 	WorldStateScoreFrame_Resize = TitanHonorPlus_WorldStateScoreFrame_Resize
-	-- Tooltip is hidden
-	old_GameTooltip_OnHide = GameTooltip_OnHide;
-	GameTooltip_OnHide = TitanHonorPlus_GameTooltip_OnHide;
 	-- Dynamic query dialog is hidden
 	old_StaticPopup_OnHide = StaticPopup_OnHide;
 	StaticPopup_OnHide = TitanHonorPlus_StaticPopup_OnHide;
+
 	
 	-- Kill List.
 	SlashCmdList["TITANHONORPLUS"] = TitanHonorPlus_PrintKills;
@@ -141,6 +120,8 @@ function TitanPanelHonorPlus_Register()
 		tooltipTitle = TITAN_HONORPLUS_TOOLTIP, 
 		tooltipTextFunction = "TitanPanelHonorPlusButton_GetTooltipText",
 		frequency = 1,
+		category = "Combat",
+		version = "[Cera 1.16]",
 		savedVariables = {
 			ShowIcon = 1,
 			ShowLabelText = 1,
@@ -150,8 +131,7 @@ function TitanPanelHonorPlus_Register()
 			SortByKills = 1,
 			
 			UseCalculatedToday = 0,
-			SCT = 1,
-			
+		
 			Print_Bonus = 1,
 			
 			ScoreBoard_Kills = 1,
@@ -163,6 +143,7 @@ function TitanPanelHonorPlus_Register()
 			
 			AutoRelease = 1,
 			AutoJoinBG = 1,
+			AutoBGMap = 1,
 		}
 	};	
 end
@@ -182,8 +163,11 @@ function TitanHonorPlus_Initialize()
 		for iName, xName in TITAN_HONORPLUS[vC]['log'] do
 			if (type(xName) == "number") then TITAN_HONORPLUS[vC]['log'][iName] = { ['k'] = xName, ['h'] = 0, ['r'] = "Unknown Rank" }; end
 		end
-		info = TITAN_HONORPLUS_CHATINFO["Default"];
-		if (TITAN_HONORPLUS_CHATINFO[UnitName("Player")]) then info = TITAN_HONORPLUS_CHATINFO[UnitName("Player")]; end
+		if (TITAN_HONORPLUS_CHATINFO[UnitName("Player")]) then
+			info = TITAN_HONORPLUS_CHATINFO[UnitName("Player")];
+		else
+			info = TITAN_HONORPLUS_CHATINFO["Default"];
+		end
 		ChatTypeInfo["HONORPLUS"] = info;
 	
 		if (type(TipBuddy_TargetName_Text) == "table") and (type(TipBuddy_Main_Frame) == "table") then
@@ -196,13 +180,15 @@ function TitanHonorPlus_Initialize()
 		vLoaded = true;
 	end
 end
-
+function TitanHonorPlus_PrintKills()
+	TITAN_HONORPLUS[vC]['todayb'] = TITAN_HONORPLUS[vC]['todayb'] -2500
+end
 ----------------------------
 -- Slash Commands
 ----------------------------
 -- The one and only slash command prints all of todays kills
 function TitanHonorPlus_PrintKills()
-	local rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP,
+	local rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP, ydayCP2,
 		weekHK, weekDK, weekCP, lastweekHK, lastweekDK, lastweekCP, lastweekRank,
 		lifetimeHK, lifetimeDK, highestRankName, highestRankNumber = TitanPanelHonorPlusGetPVPData("Slashcommand");
 	DEFAULT_CHAT_FRAME:AddMessage("Todays Kills:");
@@ -254,16 +240,13 @@ function TitanPanelHonorPlusButton_OnEvent()
 			TITAN_HONORPLUS[vC]['todayhk'] = TITAN_HONORPLUS[vC]['todayhk'] +1;
 			TITAN_HONORPLUS[vC]['log'][name]['k'] = TITAN_HONORPLUS[vC]['log'][name]['k'] +1;
 			x = TITAN_HONORPLUS[vC]['log'][name]['k'];
-			if (x == 1) then p = 1;
-			elseif (x == 2) then p = 0.75;
-			elseif (x == 3) then p = 0.5;
-			elseif (x == 4) then p = 0.25;
-			else p = 0; end
-			h = honor * p;
+
+			if (x > 10) then p = 0;
+			else p = (11-x)/10; end
+
+			h = TitanPanelHonorPlusRound(honor * p);
 			TITAN_HONORPLUS[vC]['todaycp'] = TITAN_HONORPLUS[vC]['todaycp'] + h;
-			TITAN_HONORPLUS[vC]['todaycp2'] = TITAN_HONORPLUS[vC]['todaycp2'] + honor;
-			local hround = TitanPanelHonorPlusRound(h);
-			local text = string.format(TITAN_HONORPLUS_ESTIMATED,name, x, rank, hround);
+			local text = string.format(TITAN_HONORPLUS_ESTIMATED,rank, name, x, h);
 			TitanPanelHonorPlusButton_PrintMsg(text);
 			
 			TITAN_HONORPLUS[vC]['log'][name]['h'] = TITAN_HONORPLUS[vC]['log'][name]['h'] + h;
@@ -286,23 +269,24 @@ function TitanPanelHonorPlusButton_OnEvent()
 			if (oclass) then
 				TITAN_HONORPLUS[vC]['log'][name]['c'] = oclass;
 			end
---			if (hround > 0) and (type(SCT_OnLoad) == "function") and (TitanGetVar(TITAN_HONORPLUS_ID, "SCT") == 1) then
---				currentcolor = SCT_GetTable(SCT_COLORS_TABLE, 16);
---				text = "+"..hround.." "..HONOR_CONTRIBUTION_POINTS;
---				if (SCT_Get("SHOWHONOR") == 1) then text = text.."*"; end
---				if (SCT_Get("SHOWASMESSAGE") == 1) then
---					SCT_Display_Message(text, currentcolor);
---				else
---					SCT_Display(text, currentcolor);
---				end
---			end
+
+		TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
+		TitanPanelButton_UpdateTooltip();
+		end
+
+		-- Bonus honor gain
+		local bonusHonor = 0;
+		for bonusHonor in string.gfind(arg1, TITAN_HONORPLUS_BONUSHONOR) do
+			TITAN_HONORPLUS[vC]['todayb'] = TITAN_HONORPLUS[vC]['todayb'] + bonusHonor;
+			if (TitanGetVar(TITAN_HONORPLUS_ID, "Print_Bonus") == 1) then
+				TitanPanelHonorPlusButton_PrintMsg(string.format(TITAN_HONORPLUS_BONUSHONORGAINED, bonusHonor));
+			end
 		TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
 		TitanPanelButton_UpdateTooltip();
 		end
 ---------------------------------------
 
 	elseif (event == "UPDATE_MOUSEOVER_UNIT") then
-		TitanHonorPlus_ClearHonorLine();
 		
 		if (UnitExists("mouseover")) and (TitanGetVar(TITAN_HONORPLUS_ID, "Tooltip") == 1) and -- Longest ever if statement? lol
 			(not UnitIsFriend("player", "mouseover")) and (UnitIsPlayer("mouseover")) and
@@ -319,11 +303,8 @@ function TitanPanelHonorPlusButton_OnEvent()
 			end
 			local text, color;
 			if (type(i) ~= "number") then i = 0; end
-			if (i > 3) then text = "0% ";
-			elseif (i == 3) then text = "25% ";
-			elseif (i == 2) then text = "50% ";
-			elseif (i == 1) then text = "75% ";
-			else text = "100%"; end
+			if (i > 9) then text = "0% ";
+			else local j = (10-i); text = j .."0%"; end
 			text = text.." "..HONOR_CONTRIBUTION_POINTS;
 			color = TitanHonorPlus_SmoothColor(i);
 			if (type(TipBuddy_TargetName_Text) == "table") and (type(TipBuddy_Main_Frame) == "table") then
@@ -331,23 +312,10 @@ function TitanPanelHonorPlusButton_OnEvent()
 				TitanHonorPlus_TipBuddy_TargetName_Text:Show();
 				TitanHonorPlus_TipBuddy_TargetName_Text:SetWidth(TipBuddy_Main_Frame:GetWidth());
 				TitanHonorPlus_TipBuddy_TargetName_Text:SetText(text);
-				TitanHonorPlus_TipBuddy_TargetName_Text:SetTextColor(color);
 			end
-			if (GameTooltip:IsVisible()) and (type(GameTooltipTextLeft1:GetText()) == "string") and (string.find(GameTooltipTextLeft1:GetText(), UnitName("mouseover"))) then
-				local j, left, right;
-				for j=3,20 do
-					left = getglobal("GameTooltipTextLeft"..j);
-					right = getglobal("GameTooltipTextRight"..j);
-					if ((left:GetText() == nil) or (left:GetText() == "")) and ((right:GetText() == nil) or (right:GetText() == "")) then
-						left:SetText(text);
-						left:SetTextColor(color);
-						left:Show();
-						TITAN_HONORPLUS_TOOLTIPLINE = j;
-						GameTooltip:SetHeight(GameTooltip:GetHeight() +18);
-						break;
-					end
-				end
-			end
+
+			GameTooltip:AddLine(text);
+			GameTooltip:Show();
 		else
 			TitanHonorPlus_TipBuddy_TargetName_Text:SetText("");
 		end
@@ -356,13 +324,11 @@ function TitanPanelHonorPlusButton_OnEvent()
 	elseif (event == "UPDATE_BATTLEFIELD_STATUS") then
 		TitanHonorPlus_CheckBGConfirm();
 ---------------------------------------
-		
-	-- I've seen other implementations of gathering battleground player data, and it all looked very messy, using function hooks, and the dreadful OnUpdate, ARGH!
-	-- Well, I found a far easier way of doing that with simple events =]
-	elseif (event == "UPDATE_BATTLEFIELD_SCORE") or (event == "UPDATE_WORLD_STATES") then
-		TitanHonorPlus_CheckBonusHonor();
----------------------------------------
 
+	elseif (event == "ZONE_CHANGED_NEW_AREA") then
+		TitanHonorPlus_ShowBGMap();
+---------------------------------------
+		
 	elseif (event == "CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS") or (event == "CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE") then
 		TITAN_HONORPLUS_PVPDMG = GetTime();
 ---------------------------------------
@@ -386,62 +352,20 @@ function TitanPanelHonorPlusButton_OnEvent()
 		TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
 		TitanPanelButton_UpdateTooltip();
 ---------------------------------------
-	TitanHonorPlus_RequestBattlefieldData();
 	end
 ------------------------------------------------------------------------------------------------------------------------------------------------------------	
 
 end
 
-function TitanHonorPlus_RequestBattlefieldData(f)
-	if (f) or (GetTime() > TITAN_HONORPLUS_BGAPI_NEXT) then
-		TITAN_HONORPLUS_BGAPI_NEXT = GetTime() + TITAN_HONORPLUS_BGAPI_INTERVAL;
-		RequestBattlefieldScoreData();
-	end
-end
 
--- Clear the tooltip of the previously added honor info
-function TitanHonorPlus_ClearHonorLine()
-	if (TITAN_HONORPLUS_TOOLTIPLINE) then
-		local lastleft = getglobal("GameTooltipTextLeft"..TITAN_HONORPLUS_TOOLTIPLINE);
-		if (type(lastleft:GetText()) == "string") and (string.find(lastleft:GetText(), HONOR_CONTRIBUTION_POINTS)) then
-			lastleft:SetText("");
-			lastleft:Hide();
-		end
-		TITAN_HONORPLUS_TOOLTIPLINE = nil;
-	end
-end
-
--- Call TitanHonorPlus_ClearHonorLine() when the tooltip is hidden
-function TitanHonorPlus_GameTooltip_OnHide()
-	old_GameTooltip_OnHide();
-	TitanHonorPlus_ClearHonorLine();
-end
-
-function TitanHonorPlus_CheckBonusHonor()
-	local i, j;
-	j = GetNumBattlefieldScores();
-	for i = 1, j do
-		local name, killingBlows, honorableKills, deaths, honorGained, faction, rank, race, class = GetBattlefieldScore(i);
-		if (name) then
-			if (faction == 1) then faction = "Alliance"; else faction = "Horde"; end
-			if (UnitFactionGroup("player") ~= faction) and (name) and (not playerList[name]) then
-				local oclass = TITAN_HONORPLUS_CLASSINDEX[class];
-				playerList[name] = { ['c'] = oclass };
-				if (TITAN_HONORPLUS[vC]['log'][name]) then TITAN_HONORPLUS[vC]['log'][name]['c'] = oclass; end
-			end
-			if (name == UnitName("player")) then
-				if (honorGained ~= nil) and (honorGained ~= TITAN_HONORPLUS_CURRENTBONUS) then
-					diff = honorGained - TITAN_HONORPLUS_CURRENTBONUS;
-					TITAN_HONORPLUS_CURRENTBONUS = honorGained;
-					if (diff > 0) then
-						TitanPanelHonorPlusButton_PrintMsg(string.format(TITAN_HONORPLUS_BONUSHONORGAINED, diff));
-						TITAN_HONORPLUS[vC]['todayb'] = TITAN_HONORPLUS[vC]['todayb'] + diff;
-						TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
-						TitanPanelButton_UpdateTooltip();
-					end
-				end
-				break;
-			end
+----------------------------
+-- Auto-Show Battlemap
+----------------------------
+function TitanHonorPlus_ShowBGMap()
+	if(TitanGetVar(TITAN_HONORPLUS_ID, "AutoBGMap") == 1 ) then
+	local zone_text = GetZoneText()
+		if (zone_text == TITAN_HONORPLUS_BGZONES[1] or zone_text == TITAN_HONORPLUS_BGZONES[2] or zone_text == TITAN_HONORPLUS_BGZONES[3]) then
+			BattlefieldMinimap:Show();
 		end
 	end
 end
@@ -498,8 +422,7 @@ end
 function TitanPanelHonorPlusButton_GetButtonText(id)
 	if (not vLoaded) then return "Loading.."; end
 	TitanHonorPlus_CheckBGConfirm();
-	TitanHonorPlus_RequestBattlefieldData();
-	local rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP,
+	local rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP, ydayCP2,
 		weekHK, weekDK, weekCP, lastweekHK, lastweekDK, lastweekCP, lastweekRank,
 		lifetimeHK, lifetimeDK, highestRankName, highestRankNumber = TitanPanelHonorPlusGetPVPData("Button");
 		
@@ -549,10 +472,11 @@ function TitanPanelHonorPlusGetPVPData(msg)
 	if ( not highestRankName ) then
 		highestRankName = NONE;
 	end
-	
+		
 	if (ydayCP ~= TITAN_HONORPLUS[vC]['yesterday']) and (not ((ydayCP == 0) and (lifetimeHK == 0))) then
 		-- Yesterday has been updated.
 		TITAN_HONORPLUS[vC]['yesterday'] = ydayCP;
+		TITAN_HONORPLUS[vC]['yesterday2'] = TITAN_HONORPLUS[vC]['todaycp'] + TITAN_HONORPLUS[vC]['todayb'];
 		TITAN_HONORPLUS[vC]['weekdk'] = TITAN_HONORPLUS[vC]['weekdk'] + ydayDK;
 		TITAN_HONORPLUS[vC]['log'] = { };
 		TITAN_HONORPLUS[vC]['todayhk'] = 0;
@@ -564,7 +488,8 @@ function TitanPanelHonorPlusGetPVPData(msg)
 		TitanPanelButton_UpdateTooltip();
 	end
 	if (TitanGetVar(TITAN_HONORPLUS_ID, "UseCalculatedToday") == 1) then todayHK = TITAN_HONORPLUS[vC]['todayhk']; end
-	local todayCP = TitanPanelHonorPlusRound(TITAN_HONORPLUS[vC]['todaycp']);
+	local todayCP = TITAN_HONORPLUS[vC]['todaycp'];
+	local ydayCP2 = TITAN_HONORPLUS[vC]['yesterday2'];
 	
 	-- reset if new week
 	if (lastweekCP ~= TITAN_HONORPLUS[vC]['lastweek']) then
@@ -575,7 +500,7 @@ function TitanPanelHonorPlusGetPVPData(msg)
 	end
 	local weekDK = TITAN_HONORPLUS[vC]['weekdk'];
 		
-	return rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP,
+	return rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP, ydayCP2,
 		weekHK, weekDK, weekCP, lastweekHK, lastweekDK, lastweekCP, lastweekRank,
 		lifetimeHK, lifetimeDK, highestRankName, highestRankNumber;
 end
@@ -596,11 +521,10 @@ end
 function TitanPanelHonorPlusButton_GetTooltipText()
 	if (not vLoaded) then return "Loading.."; end
 	
-	local rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP,
+	local rankName, rankNumber, todayHK, todayDK, todayCP, todayB, ydayHK, ydayDK, ydayCP, ydayCP2,
 		weekHK, weekDK, weekCP, lastweekHK, lastweekDK, lastweekCP, lastweekRank,
 		lifetimeHK, lifetimeDK, highestRankName, highestRankNumber = TitanPanelHonorPlusGetPVPData("Tooltip");
 	
-	local todaycp2 = TitanPanelHonorPlusRound(TITAN_HONORPLUS[vC]['todaycp2']);
 	local progress = TitanPanelHonorPlusRound(GetPVPRankProgress() *100);
 	local todayD = TITAN_HONORPLUS[vC]['todayd'];
 	local s;
@@ -659,18 +583,20 @@ function TitanPanelHonorPlusButton_GetTooltipText()
 			TitanUtils_GetHighlightText(HONOR_THIS_SESSION).." ".."|cffa0a0a0"..TITAN_HONORPLUS_HINT_TOOLTIP.."|r".."\n"..
 			HONORABLE_KILLS..": \t"..TitanUtils_GetGreenText(todayHK).."\n"..
 			DISHONORABLE_KILLS..": \t"..TitanUtils_GetRedText(todayDK).."\n"..
-			TITAN_HONORPLUS_BONUS..": \t".."|cffa0a0ff"..todayB.."|r".."\n"..
-			HONOR_CONTRIBUTION_POINTS..": \t"..TitanUtils_GetHighlightText(todayCP + todayB).."\n"..
+			TITAN_HONORPLUS_BONUS..": \t"..TitanUtils_GetHighlightText(todayB).."\n"..
+			TITAN_HONORPLUS_HONORESTIMATION..": \t".."|cffa0a0ff"..(todayCP + todayB).."|r".."\n"..
 			"\n"..
 			TitanUtils_GetHighlightText(HONOR_YESTERDAY).."\n"..
 			HONORABLE_KILLS..": \t"..TitanUtils_GetGreenText(ydayHK).."\n"..
 			DISHONORABLE_KILLS..": \t"..TitanUtils_GetRedText(ydayDK).."\n"..
 			HONOR_CONTRIBUTION_POINTS..": \t"..TitanUtils_GetHighlightText(ydayCP).."\n"..
+			TITAN_HONORPLUS_HONORESTIMATED..": \t".."|cffa0a0ff"..ydayCP2.."|r".."\n"..
 			"\n"..
 			TitanUtils_GetHighlightText(HONOR_THISWEEK).."\n"..
 			HONORABLE_KILLS..": \t"..TitanUtils_GetGreenText(weekHK).."\n"..
 			DISHONORABLE_KILLS..": \t"..TitanUtils_GetRedText(weekDK).."\n"..
 			HONOR_CONTRIBUTION_POINTS..": \t"..TitanUtils_GetHighlightText(weekCP).."\n"..
+			TITAN_HONORPLUS_HONORESTIMATION..": \t".."|cffa0a0ff"..(weekCP + todayCP + todayB).."|r".."\n"..
 			"\n"..
 			TitanUtils_GetHighlightText(HONOR_LASTWEEK).."\n"..
 			HONORABLE_KILLS..": \t"..TitanUtils_GetGreenText(lastweekHK).."\n"..
@@ -710,10 +636,6 @@ function TitanPanelHonorPlus_ToggleVar_UseCalculatedToday()
 end
 function TitanPanelHonorPlus_ToggleVar_Print_Bonus()
 	TitanToggleVar(TITAN_HONORPLUS_ID, "Print_Bonus");
-	TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
-end
-function TitanPanelHonorPlus_ToggleVar_SCT()
-	TitanToggleVar(TITAN_HONORPLUS_ID, "SCT");
 	TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
 end
 function TitanPanelHonorPlus_ToggleVar_ScoreBoard_Opium()
@@ -757,6 +679,12 @@ function TitanPanelHonorPlus_ToggleVar_AutoJoinBG()
 	TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
 end
 
+function TitanPanelHonorPlus_ToggleVar_AutoBGMap()
+	TitanToggleVar(TITAN_HONORPLUS_ID, "AutoBGMap");
+	TitanPanelButton_UpdateButton(TITAN_HONORPLUS_ID);
+	
+end
+
 ----------------------------
 -- Rightclick Menu
 ----------------------------
@@ -789,16 +717,6 @@ function TitanPanelRightClickMenu_PrepareHonorPlusMenu()
 	info.checked = TitanGetVar(TITAN_HONORPLUS_ID, "Print_Bonus");
 	info.keepShownOnClick = 1;
 	UIDropDownMenu_AddButton(info);
-	
-	-- Add toggle for Scrolling Combat Text support.
-	if (type(SCT_OnLoad) == "function") then
-		info = {};
-		info.text = TITAN_HONORPLUS_MENU_SCT;
-		info.func = TitanPanelHonorPlus_ToggleVar_SCT;
-		info.checked = TitanGetVar(TITAN_HONORPLUS_ID, "SCT");
-		info.keepShownOnClick = 1;
-		UIDropDownMenu_AddButton(info);
-	end
 	
 	TitanPanelRightClickMenu_AddSpacer();
 	TitanPanelRightClickMenu_AddTitle("Scoreboard Options");	
@@ -845,6 +763,12 @@ function TitanPanelRightClickMenu_PrepareHonorPlusMenu()
 	info.checked = TitanGetVar(TITAN_HONORPLUS_ID, "AutoJoinBG");
 	info.keepShownOnClick = 1;
 	UIDropDownMenu_AddButton(info);
+	info = {};
+	info.text = TITAN_HONORPLUS_MENU_AUTOBGMAP;
+	info.func = TitanPanelHonorPlus_ToggleVar_AutoBGMap;
+	info.checked = TitanGetVar(TITAN_HONORPLUS_ID, "AutoBGMap");
+	info.keepShownOnClick = 1;
+	UIDropDownMenu_AddButton(info);
 	
 	if (TitanGetVar(TITAN_HONORPLUS_ID, "AlternateDisplay") == 1) then
 		TitanPanelRightClickMenu_AddSpacer();
@@ -874,10 +798,11 @@ end
 -- Simple Round Function
 ----------------------------
 function TitanPanelHonorPlusRound(x)
-	if(x - math.floor(x) > 0.5) then
-		x = x + 0.5;
+	if (x > 0) then
+		return math.floor(x+0.5);
+	else
+		return math.ceil(x-0.5);
 	end
-	return math.floor(x);
 end
 
 ----------------------------
@@ -885,7 +810,6 @@ end
 ----------------------------
 function TitanHonorPlus_WorldStateScoreFrame_Update()
 	old_WorldStateScoreFrame_Update();
-	TitanHonorPlus_CheckBonusHonor();
 
 	local TitanHonorPlusColumn;
 	if (TitanGetVar(TITAN_HONORPLUS_ID, "ScoreBoard_Kills")) then
@@ -950,13 +874,12 @@ function TitanHonorPlus_WorldStateScoreFrame_Update()
 					if (TitanGetVar(TITAN_HONORPLUS_ID, "ScoreBoard_ClassColorList")) then text = TITAN_HONORPLUS_CLASSCOLORINDEX[i]..text.."|r"; end
 				end
 				buttonName:SetText(text);
-				--(TitanGetVar(TITAN_HONORPLUS_ID, "ScoreBoard_Kills")) 
 				if (todayColumn) and (TitanGetVar(TITAN_HONORPLUS_ID, "ScoreBoard_Kills")) and (faction ~= UnitFactionGroup("player")) then
-				local log = TITAN_HONORPLUS[vC]['log'][name];
+				local _, _, truncname = string.find(name, "(%a+)");
+				local log = TITAN_HONORPLUS[vC]['log'][truncname];
 					if (log) then log = log['k']; end
 					if (type(log) ~= "number") then log = 0; end
 					todayColumn:SetText(TitanHonorPlus_SmoothColor(log, 1)..log.."|r");
-					--todayColumn:SetTextColor(TitanHonorPlus_SmoothColor(log));
 					todayColumn:Show();
 				end
 			end
@@ -966,28 +889,16 @@ end
 
 -- Returns color based on number of kills, green to red. Red if more than 3 kills.
 function TitanHonorPlus_SmoothColor(k, t)
-	if (k > 4) then k = 4; end
-	p = 1-(k/4);
-	local r,g,b = 1, 1, 0;
-	if (p > 0.75) then r = 4*(1- p);
-	else g = 1.33* p; end
+	if (k > 10) then k = 10; end
+	p = 1-(k/10);
+	local r,g,b = 1, 0, 0;
+	if (p > 0) then g = p; end
 	if (not t) then return r, g, b; end
 	r, g, b = TitanHonorPlus_base10to16(255*r), TitanHonorPlus_base10to16(255*g), TitanHonorPlus_base10to16(255*b);
 	return "|cff"..r..g..b;
 end
 
 local TITAN_HONORPLUS_BASE16 = { [0] = 0, [1] = 1, [2] = 2, [3] = 3, [4] = 4, [5] = 5, [6] = 6, [7] = 7, [8] = 8, [9] = 9, [10] = "a", [11] = "b", [12] = "c", [13] = "d", [14] = "e", [15] = "f" };
-
-function _blah(from, msg)
-	ChatFrame4:AddMessage("|cff"..TitanHonorPlus_base10to16(255)..TitanHonorPlus_base10to16(150)..TitanHonorPlus_base10to16(255).."["..from.."] whispers: "..msg);
-end
-
-function blah()
-	_blah("GM_Martin", "Good evening, how may I be of help?");
-	_blah("GM_Martin", "Your quest item is not registered in our database, I am going to remove it and you will need to obtain a new one.");
-	_blah("Mezron", "LF1m 5man scholo need priest or druid");
-	_blah("GM_Martin", "Is there anything else I can help you with tonight?");
-end
 
 function TitanHonorPlus_base10to16(n)
 	if (type(n) ~= "number") then return; end
@@ -1037,16 +948,19 @@ ChatTypeGroup["HONORPLUS"] = {
 ChatTypeInfo["HONORPLUS"] = { sticky = 0 };
 tinsert(OtherMenuChatTypeGroups, "HONORPLUS");
 CHAT_HONORPLUS_GET = "";
-TITAN_HONORPLUS_CHATINFO = {
-	["Default"] = {
-		["r"] = 0.878,
-		["g"] = 0.792,
-		["b"] = 0.039,
-		["show"] = {
-			"ChatFrame1"
+if (TITAN_HONORPLUS_CHATINFO == nil) then
+	TITAN_HONORPLUS_CHATINFO = {
+		["Default"] = {
+			["r"] = 0.878,
+			["g"] = 0.792,
+			["b"] = 0.039,
+			["show"] = {
+				"ChatFrame1"
+			}
 		}
-	}
-};
+	};
+end
+
 function TitanPanelHonorPlusButton_PrintMsg(msg)
 	event = "CHAT_MSG_HONORPLUS";
 	arg1 = msg;

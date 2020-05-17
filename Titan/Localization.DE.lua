@@ -324,7 +324,6 @@ function TitanLocalizeDE()
 	TITAN_HONORPLUS_MENU_TOOLTIP = "Zeige Tooltip Info";
 	TITAN_HONORPLUS_MENU_SORTBYHONOR = "Nach Ehre sortieren";
 	TITAN_HONORPLUS_MENU_SORTBYKILLS = "Nach Kills sortieren";
-	TITAN_HONORPLUS_ESTIMATED = "%s stirbt, [%d mal heute.], Rang: %s. [Gewonnene Ehre: %d]";
 	TITAN_HONORPLUS_BONUSHONORGAINED = "Du bekommst %s Ehre.";
 	TITAN_HONORPLUS_BONUS = "Bonus";
 	TITAN_HONORPLUS_PROGRESS = "Fortschritt";
@@ -341,9 +340,14 @@ function TitanLocalizeDE()
 	TITAN_HONORPLUS_KILLEDTODAY = "Heutige Kills";
 	TITAN_HONORPLUS_MENU_AUTORELEASE = "Auto-Release";
 	TITAN_HONORPLUS_MENU_AUTOJOINBG = "Auto-Join Battlegrounds";
-	TITAN_HONORPLUS_AUTOJOINBG = "Automatisches beitreten des Battlegrounds in 10 Sekunden...";
+	TITAN_HONORPLUS_AUTOJOINBG = "Automatisches beitreten des Battlegrounds in 30 Sekunden...";
 	TITAN_HONORPLUS_AUTOJOINBG_CANCEL = "Beitreten abgebrochen.";
 	TITAN_HONORPLUS_AUTOJOINBG_DONE = "Battleground wird beigetreten, viel Gl\195\188ck!";
+	TITAN_HONORPLUS_ESTIMATED = "[%s] %s stirbt [%d kills Heute][Ehre: %d]";
+	TITAN_HONORPLUS_HONORESTIMATED = "gesch\195\164tzte Ehre";
+	TITAN_HONORPLUS_HONORESTIMATION = "gesch\195\164tzte Ehre";
+	TITAN_HONORPLUS_BONUSHONOR = "Ihr erhaltet (%d+)% Ehrenpunkte"
+	TITAN_HONORPLUS_BGZONES = {"Alteractal", "Warsongschlucht", "Arathibecken"};
 
 	REPAIR_LOCALE["pattern"] = "^Haltbarkeit (%d+) / (%d+)$";
 	REPAIR_LOCALE["menu"] = "Haltbarkeits Info";
