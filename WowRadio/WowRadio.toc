@@ -19,5 +19,6 @@ Libs\AceLocale-2.2\AceLocale-2.2.lua
 Locale-deDE.lua
 Locale-enEN.lua
 Locale-enUS.lua
+Locale-zhCN.lua
 Stations.lua
 Core.lua
